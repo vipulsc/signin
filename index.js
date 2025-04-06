@@ -4,7 +4,7 @@ import mongoose from "mongoose";
 import cors from "cors";
 import jwt from "jsonwebtoken";
 import { nanoid } from "nanoid";
-import bcrypt from "bcrypt";
+import bcrypt from "bcryptjs";
 import { z } from "zod";
 import User from "./models/User.js";
 
@@ -12,45 +12,44 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
-// MongoDB Connect
+// 🧠 MongoDB connection
 mongoose
   .connect(process.env.MONGO_URL, {
     useNewUrlParser: true,
     useUnifiedTopology: true,
   })
   .then(() => console.log("✅ MongoDB connected"))
-  .catch((err) => console.error("❌ MongoDB error:", err));
+  .catch((err) => console.error("❌ MongoDB connection error:", err));
 
-// Zod Schema for user input
-const authSchema = z.object({
-  username: z.string().min(3, "Username must be at least 3 characters"),
-  password: z.string().min(6, "Password must be at least 6 characters"),
+// 🛡️ Zod schemas
+const userSchema = z.object({
+  username: z.string().min(3),
+  password: z.string().min(6),
 });
 
-// Routes
-
-// Health Check
+// 📡 Health check
 app.get("/", (req, res) => {
   res.send("API is running...");
 });
 
-// Signup
+// 📝 Signup
 app.post("/signup", async (req, res) => {
-  const parsed = authSchema.safeParse(req.body);
-  if (!parsed.success) {
-    return res.status(400).json({ errors: parsed.error.errors });
+  const result = userSchema.safeParse(req.body);
+  if (!result.success) {
+    return res
+      .status(400)
+      .json({ error: "Invalid input", issues: result.error.issues });
   }
 
-  const { username, password } = parsed.data;
+  const { username, password } = result.data;
 
   try {
     const existing = await User.findOne({ username });
     if (existing) return res.status(400).send("User already exists");
 
     const hashedPassword = await bcrypt.hash(password, 10);
-
     const newUser = new User({
       userid: nanoid(),
       username,
@@ -65,23 +64,28 @@ app.post("/signup", async (req, res) => {
   }
 });
 
-// Login
+// 🔐 Login
 app.post("/login", async (req, res) => {
-  const parsed = authSchema.safeParse(req.body);
-  if (!parsed.success) {
-    return res.status(400).json({ errors: parsed.error.errors });
+  const result = userSchema.safeParse(req.body);
+  if (!result.success) {
+    return res
+      .status(400)
+      .json({ error: "Invalid input", issues: result.error.issues });
   }
 
-  const { username, password } = parsed.data;
+  const { username, password } = result.data;
 
   try {
     const user = await User.findOne({ username });
     if (!user) return res.status(401).send("Invalid credentials");
 
-    const passwordMatch = await bcrypt.compare(password, user.password);
-    if (!passwordMatch) return res.status(401).send("Invalid credentials");
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) return res.status(401).send("Invalid credentials");
 
-    const token = jwt.sign({ userid: user.userid }, process.env.JWT_SECRET);
+    const token = jwt.sign({ userid: user.userid }, process.env.JWT_SECRET, {
+      expiresIn: "7d",
+    });
+
     res.json({ message: "Login successful", token });
   } catch (error) {
     console.error("Login error:", error);
@@ -89,12 +93,7 @@ app.post("/login", async (req, res) => {
   }
 });
 
-// Protected route
-app.get("/protected", authorize, (req, res) => {
-  res.send(`Hello user with ID: ${req.userid}`);
-});
-
-// Auth middleware
+// 🔒 Middleware
 function authorize(req, res, next) {
   const token = req.headers.authorization?.split(" ")[1];
   if (!token) return res.status(401).send("Unauthorized");
@@ -108,6 +107,11 @@ function authorize(req, res, next) {
   }
 }
 
+// ✅ Protected route example
+app.get("/protected", authorize, (req, res) => {
+  res.send(`Hello user with ID: ${req.userid}`);
+});
+
 app.listen(PORT, () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
+  console.log(`🚀 Server running at http://localhost:${PORT}`);
 });
