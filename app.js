@@ -4,7 +4,6 @@ import { nanoid } from "nanoid";
 const app = express();
 app.use(express.json());
 const port = 3000;
-import { loadFile, editFile } from "./index.js";
 import jwt from "jsonwebtoken";
 import cors from "cors";
 
