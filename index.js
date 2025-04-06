@@ -82,9 +82,13 @@ app.post("/login", async (req, res) => {
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(401).send("Invalid credentials");
 
-    const token = jwt.sign({ userid: user.userid }, process.env.JWT_SECRET, {
-      expiresIn: "7d",
-    });
+    const token = jwt.sign(
+      { username: user.username },
+      process.env.JWT_SECRET,
+      {
+        expiresIn: "7d",
+      }
+    );
 
     res.json({ message: "Login successful", token });
   } catch (error) {
@@ -100,7 +104,7 @@ function authorize(req, res, next) {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.userid = decoded.userid;
+    req.username = decoded.username;
     next();
   } catch (err) {
     res.status(400).send("Invalid token");
@@ -109,7 +113,7 @@ function authorize(req, res, next) {
 
 // ✅ Protected route example
 app.get("/protected", authorize, (req, res) => {
-  res.send(`Hello user with ID: ${req.userid}`);
+  res.send(`Hello user with username: ${req.username}`);
 });
 
 app.listen(PORT, () => {
